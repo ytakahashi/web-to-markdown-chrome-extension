@@ -1,0 +1,25 @@
+:root {
+  color: #202124;
+  background: #ffffff;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.popup {
+  box-sizing: border-box;
+  width: 420px;
+  min-height: 160px;
+  padding: 24px;
+}
+
+.popup h1 {
+  margin: 0 0 16px;
+  font-size: 20px;
+}
+
+.popup p {
+  margin: 0;
+}
