@@ -50,6 +50,8 @@ jobs:
       - name: Upload extension package
         uses: actions/upload-artifact@v7
         with:
-          name: web-to-markdown-chrome
           path: .output/*-chrome.zip
+          # upload-artifact excludes paths inside dot-directories by default.
+          include-hidden-files: true
+          archive: false
           if-no-files-found: error
