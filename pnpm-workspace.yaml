@@ -1,0 +1,4 @@
+allowBuilds:
+  # Required by eslint-import-resolver-typescript to resolve TypeScript imports.
+  unrs-resolver: true
+savePrefix: ""
