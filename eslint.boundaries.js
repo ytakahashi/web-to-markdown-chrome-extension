@@ -18,6 +18,7 @@ export const boundariesConfig = {
       { type: "popup", pattern: "src/entrypoints/popup", partialMatch: false },
       { type: "entrypoint", pattern: "src/entrypoints", partialMatch: false },
       { type: "test-support", pattern: "src/test", partialMatch: false },
+      { type: "type-declaration", pattern: "src/types", partialMatch: false },
     ],
   },
   rules: {
