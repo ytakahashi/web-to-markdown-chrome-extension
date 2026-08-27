@@ -20,6 +20,7 @@ export const boundariesConfig = {
       { type: "test-support", pattern: "src/test", partialMatch: false },
       { type: "type-declaration", pattern: "src/types", partialMatch: false },
     ],
+    "boundaries/files": [{ category: "test", pattern: "**/*.test.{ts,tsx}" }],
   },
   rules: {
     "boundaries/dependencies": [
@@ -44,6 +45,14 @@ export const boundariesConfig = {
           {
             from: { element: { type: "entrypoint" } },
             allow: { to: { element: { types: { anyOf: ["core", "page"] } } } },
+          },
+          {
+            from: { element: { type: "test-support" } },
+            allow: { to: { element: { type: "core" } } },
+          },
+          {
+            from: { file: { categories: "test" } },
+            allow: { to: { element: { type: "test-support" } } },
           },
         ],
       },
