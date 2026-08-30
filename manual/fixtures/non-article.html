@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manual verification dashboard</title>
+  </head>
+  <body>
+    <!--
+      Readability returns its longest candidate whenever it finds visible text.
+      Keep labels in image alt attributes so article extraction fails while the
+      full-page path still produces meaningful Markdown.
+    -->
+    <nav class="menu" aria-label="Project dashboard">
+      <a href="projects/alpha" title="Alpha project">
+        <img src="assets/sample.svg" alt="Alpha project" />
+      </a>
+      <a href="projects/beta" title="Beta project">
+        <img src="assets/sample.svg" alt="Beta project" />
+      </a>
+    </nav>
+    <aside class="sidebar card" aria-label="Quick actions">
+      <style>
+        .card {
+          border: 1px solid #ccc;
+        }
+      </style>
+      <a href="tasks/new" title="Create a task">
+        <img src="assets/sample.svg" alt="Create a task" />
+      </a>
+      <a href="javascript:alert('unsafe')" title="Unsafe dashboard action">
+        <img src="assets/sample.svg" alt="Unsafe dashboard action" />
+      </a>
+      <img
+        src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+        alt="Embedded dashboard placeholder"
+      />
+    </aside>
+    <script>
+      window.nonArticleScriptExecuted = true;
+    </script>
+  </body>
+</html>

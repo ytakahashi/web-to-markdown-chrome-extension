@@ -13,6 +13,7 @@
     "zip": "wxt zip",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "manual:fixtures": "node scripts/serve-manual-fixtures.mjs",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
     "typecheck": "wxt prepare && tsc --noEmit",
