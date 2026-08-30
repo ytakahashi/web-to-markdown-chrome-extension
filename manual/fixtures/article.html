@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manual verification article</title>
+  </head>
+  <body>
+    <nav><a href="/archive">Archive</a></nav>
+    <article>
+      <h1>Reliable Markdown conversion</h1>
+      <p>
+        This hand-written article provides enough meaningful text for article
+        extraction. It keeps the manual verification independent of changes to
+        third-party websites while exercising the same browser integration as a
+        regular HTTPS article.
+      </p>
+      <p>
+        The extension should preserve readable content, convert the relative
+        <a href="references/details.html">reference link</a> to an absolute URL,
+        and leave this article in the original page unchanged after extraction.
+        This paragraph is intentionally long enough to give Readability a stable
+        article candidate in different browser and dependency versions.
+      </p>
+      <h2>Structured content</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Input</th>
+            <th>Expected output</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Table</td>
+            <td>GFM table</td>
+          </tr>
+        </tbody>
+      </table>
+      <pre><code>const format = "markdown";
+console.log(format);</code></pre>
+      <p>
+        <img src="assets/sample.svg" alt="Blue verification square" />
+        <img
+          src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+          alt="Embedded placeholder"
+        />
+      </p>
+      <p>
+        <a href="javascript:alert('unsafe')">Unsafe link text stays readable</a
+        >.
+      </p>
+    </article>
+    <script>
+      window.fixtureArticleSnapshot =
+        document.querySelector("article").outerHTML;
+    </script>
+  </body>
+</html>
