@@ -2,17 +2,13 @@ import { StrictMode, type PropsWithChildren } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EXTRACTION_SCRIPTS, runExtraction } from "../../browser/active-tab";
+import { runExtraction } from "../../browser/active-tab";
 import { UnsupportedPageError } from "../../browser/errors";
 import type { ExtractionResult } from "../../core/types";
 import { InvalidExtractionResultError } from "../../core/validate-extraction-result";
 import { useMarkdown } from "./use-markdown";
 
 vi.mock("../../browser/active-tab", () => ({
-  EXTRACTION_SCRIPTS: {
-    article: "/extract-article.js",
-    fullPage: "/extract-full-page.js",
-  },
   runExtraction: vi.fn(),
 }));
 
@@ -55,7 +51,7 @@ describe("useMarkdown", () => {
         markdown: "# Article\n\nBody\n",
       });
     });
-    expect(runExtractionMock).toHaveBeenCalledWith(EXTRACTION_SCRIPTS.article);
+    expect(runExtractionMock).toHaveBeenCalledWith("article");
   });
 
   it("loads the full page only after an explicit fallback request", async () => {
@@ -70,7 +66,7 @@ describe("useMarkdown", () => {
       expect(result.current.state).toEqual({ kind: "notArticle" });
     });
     expect(runExtractionMock).toHaveBeenCalledTimes(1);
-    expect(runExtractionMock).toHaveBeenCalledWith(EXTRACTION_SCRIPTS.article);
+    expect(runExtractionMock).toHaveBeenCalledWith("article");
 
     let firstFallback!: Promise<void>;
     let duplicateFallback!: Promise<void>;
@@ -81,9 +77,7 @@ describe("useMarkdown", () => {
 
     expect(result.current.state).toEqual({ kind: "loading" });
     expect(runExtractionMock).toHaveBeenCalledTimes(2);
-    expect(runExtractionMock).toHaveBeenLastCalledWith(
-      EXTRACTION_SCRIPTS.fullPage,
-    );
+    expect(runExtractionMock).toHaveBeenLastCalledWith("fullPage");
 
     fallback.resolve(ARTICLE_RESULT);
     await act(async () => {
@@ -95,11 +89,10 @@ describe("useMarkdown", () => {
     });
   });
 
-  it("returns to notArticle when full-page extraction has no body", async () => {
-    runExtractionMock.mockResolvedValue({
-      ok: false,
-      reason: "not-article",
-    });
+  it("maps a full-page no-content result to notArticle", async () => {
+    runExtractionMock
+      .mockResolvedValueOnce({ ok: false, reason: "not-article" })
+      .mockResolvedValueOnce({ ok: false, reason: "no-content" });
 
     const { result } = renderHook(() => useMarkdown());
     await waitFor(() => {

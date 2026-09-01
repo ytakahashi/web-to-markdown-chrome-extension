@@ -9,10 +9,10 @@ const NON_TEXT_ELEMENT_SELECTOR =
   "script, style, noscript, template, svg, canvas, link, meta";
 
 export function extractFullPage(doc: Document): ExtractionResult {
-  // not-article means extraction ran but there is no body to extract. Other DOM
-  // and URL failures must propagate instead of looking recoverable to the user.
+  // A missing body is a completed full-page extraction with no content. Other
+  // DOM and URL failures must propagate instead of looking recoverable.
   if (!doc.body) {
-    return { ok: false, reason: "not-article" };
+    return { ok: false, reason: "no-content" };
   }
 
   const body = doc.body.cloneNode(true) as HTMLElement;

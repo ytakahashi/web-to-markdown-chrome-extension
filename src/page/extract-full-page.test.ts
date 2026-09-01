@@ -85,13 +85,13 @@ describe("extractFullPage", () => {
     expect(extracted.querySelector("footer")?.textContent).toBe("Footer");
   });
 
-  it("returns not-article when the document has no body", () => {
+  it("returns no-content when the document has no body", () => {
     const doc = createDocument();
     doc.body.remove();
 
     expect(extractFullPage(doc)).toEqual({
       ok: false,
-      reason: "not-article",
+      reason: "no-content",
     });
   });
 });
