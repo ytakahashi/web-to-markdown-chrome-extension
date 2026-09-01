@@ -5,13 +5,17 @@ import { FallbackPrompt } from "./components/FallbackPrompt";
 import { LoadingIndicator } from "./components/LoadingIndicator";
 import { MarkdownView } from "./components/MarkdownView";
 import { Notice } from "./components/Notice";
-import { useMarkdown, type MarkdownState } from "./use-markdown";
+import { useMarkdown, type ModeState } from "./use-markdown";
 
 const NOTICES = {
   notArticle: {
     title: "Article content wasn't found",
     message:
       "This page might not use an article layout. You can convert the entire page instead.",
+  },
+  noContent: {
+    title: "No content was found",
+    message: "This page has no content to convert.",
   },
   unsupported: {
     title: "This page isn't supported",
@@ -24,6 +28,8 @@ const NOTICES = {
   },
 } as const;
 
+type PopupViewState = ModeState | { kind: "unsupported" };
+
 function noticeAnnouncement(notice: {
   title: string;
   message: string;
@@ -31,12 +37,15 @@ function noticeAnnouncement(notice: {
   return `${notice.title}. ${notice.message}`;
 }
 
-function stateAnnouncement(state: MarkdownState): string {
-  switch (state.kind) {
+function stateAnnouncement(view: PopupViewState): string {
+  switch (view.kind) {
+    case "idle":
     case "loading":
       return "Converting current page…";
     case "notArticle":
       return noticeAnnouncement(NOTICES.notArticle);
+    case "noContent":
+      return noticeAnnouncement(NOTICES.noContent);
     case "unsupported":
       return noticeAnnouncement(NOTICES.unsupported);
     default:
@@ -45,10 +54,11 @@ function stateAnnouncement(state: MarkdownState): string {
 }
 
 export function App() {
-  const { state, convertFullPage } = useMarkdown();
+  const { state, unsupported, selectMode } = useMarkdown();
   const [copyAnnouncement, setCopyAnnouncement] = useState("");
+  const view: PopupViewState = unsupported ? { kind: "unsupported" } : state;
   const announcement =
-    state.kind === "ready" ? copyAnnouncement : stateAnnouncement(state);
+    view.kind === "ready" ? copyAnnouncement : stateAnnouncement(view);
 
   return (
     <main className="popup">
@@ -65,42 +75,51 @@ export function App() {
         {announcement}
       </p>
 
-      <div className={`popup-content popup-content--${state.kind}`}>
-        {state.kind === "loading" && <LoadingIndicator />}
+      <div className={`popup-content popup-content--${view.kind}`}>
+        {(view.kind === "idle" || view.kind === "loading") && (
+          <LoadingIndicator />
+        )}
 
-        {state.kind === "ready" && (
+        {view.kind === "ready" && (
           <>
-            <MarkdownView markdown={state.markdown} />
+            <MarkdownView markdown={view.markdown} />
             <CopyButton
-              markdown={state.markdown}
+              markdown={view.markdown}
               onAnnouncement={setCopyAnnouncement}
             />
           </>
         )}
 
-        {state.kind === "notArticle" && (
+        {view.kind === "notArticle" && (
           <FallbackPrompt
             message={NOTICES.notArticle.message}
-            onConvert={convertFullPage}
+            onSelectFullPage={() => selectMode("fullPage")}
             title={NOTICES.notArticle.title}
           />
         )}
 
-        {state.kind === "unsupported" && (
+        {view.kind === "noContent" && (
+          <Notice
+            message={NOTICES.noContent.message}
+            title={NOTICES.noContent.title}
+          />
+        )}
+
+        {view.kind === "unsupported" && (
           <Notice
             message={NOTICES.unsupported.message}
             title={NOTICES.unsupported.title}
           />
         )}
 
-        {state.kind === "failed" && (
+        {view.kind === "failed" && (
           <Notice
             role="alert"
             tone="error"
             message={NOTICES.failed.message}
             title={NOTICES.failed.title}
           >
-            <p className="notice-details">{state.message}</p>
+            <p className="notice-details">{view.message}</p>
           </Notice>
         )}
       </div>

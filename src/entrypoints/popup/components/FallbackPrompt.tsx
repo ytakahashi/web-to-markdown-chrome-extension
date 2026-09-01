@@ -2,13 +2,13 @@ import { Notice } from "./Notice";
 
 export type FallbackPromptProps = {
   message: string;
-  onConvert: () => Promise<void>;
+  onSelectFullPage: () => void;
   title: string;
 };
 
 export function FallbackPrompt({
   message,
-  onConvert,
+  onSelectFullPage,
   title,
 }: FallbackPromptProps) {
   return (
@@ -16,7 +16,7 @@ export function FallbackPrompt({
       <button
         autoFocus
         className="button button--primary"
-        onClick={() => void onConvert()}
+        onClick={onSelectFullPage}
         type="button"
       >
         Convert entire page

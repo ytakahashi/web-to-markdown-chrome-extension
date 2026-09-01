@@ -19,6 +19,11 @@ const ARTICLE_RESULT: ExtractionResult = {
   content: { title: "Article", html: "<p>Body</p>" },
 };
 
+const FULL_PAGE_RESULT: ExtractionResult = {
+  ok: true,
+  content: { title: "Page", html: "<main>Full page</main>" },
+};
+
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
   const promise = new Promise<T>((resolvePromise) => {
@@ -36,13 +41,19 @@ describe("useMarkdown", () => {
     runExtractionMock.mockReset();
   });
 
-  it("transitions from loading to ready with built Markdown", async () => {
+  it("starts in article mode and builds Markdown automatically", async () => {
     const extraction = deferred<ExtractionResult>();
     runExtractionMock.mockReturnValue(extraction.promise);
 
     const { result } = renderHook(() => useMarkdown());
 
-    expect(result.current.state).toEqual({ kind: "loading" });
+    expect(result.current).toMatchObject({
+      mode: "article",
+      state: { kind: "loading" },
+      unsupported: false,
+    });
+    expect(runExtractionMock).toHaveBeenCalledTimes(1);
+    expect(runExtractionMock).toHaveBeenCalledWith("article");
 
     extraction.resolve(ARTICLE_RESULT);
     await waitFor(() => {
@@ -51,14 +62,15 @@ describe("useMarkdown", () => {
         markdown: "# Article\n\nBody\n",
       });
     });
-    expect(runExtractionMock).toHaveBeenCalledWith("article");
   });
 
-  it("loads the full page only after an explicit fallback request", async () => {
-    const fallback = deferred<ExtractionResult>();
-    runExtractionMock
-      .mockResolvedValueOnce({ ok: false, reason: "not-article" })
-      .mockReturnValueOnce(fallback.promise);
+  it("does not load the full page until it is selected", async () => {
+    const fullPageExtraction = deferred<ExtractionResult>();
+    runExtractionMock.mockImplementation((mode) =>
+      mode === "article"
+        ? Promise.resolve({ ok: false, reason: "not-article" })
+        : fullPageExtraction.promise,
+    );
 
     const { result } = renderHook(() => useMarkdown());
 
@@ -66,30 +78,26 @@ describe("useMarkdown", () => {
       expect(result.current.state).toEqual({ kind: "notArticle" });
     });
     expect(runExtractionMock).toHaveBeenCalledTimes(1);
-    expect(runExtractionMock).toHaveBeenCalledWith("article");
 
-    let firstFallback!: Promise<void>;
-    let duplicateFallback!: Promise<void>;
     act(() => {
-      firstFallback = result.current.convertFullPage();
-      duplicateFallback = result.current.convertFullPage();
+      result.current.selectMode("fullPage");
     });
 
+    expect(result.current.mode).toBe("fullPage");
     expect(result.current.state).toEqual({ kind: "loading" });
-    expect(runExtractionMock).toHaveBeenCalledTimes(2);
     expect(runExtractionMock).toHaveBeenLastCalledWith("fullPage");
 
-    fallback.resolve(ARTICLE_RESULT);
     await act(async () => {
-      await Promise.all([firstFallback, duplicateFallback]);
+      fullPageExtraction.resolve(FULL_PAGE_RESULT);
+      await fullPageExtraction.promise;
     });
     expect(result.current.state).toEqual({
       kind: "ready",
-      markdown: "# Article\n\nBody\n",
+      markdown: "# Page\n\nFull page\n",
     });
   });
 
-  it("maps a full-page no-content result to notArticle", async () => {
+  it("maps extraction reasons to mode-specific states", async () => {
     runExtractionMock
       .mockResolvedValueOnce({ ok: false, reason: "not-article" })
       .mockResolvedValueOnce({ ok: false, reason: "no-content" });
@@ -99,45 +107,106 @@ describe("useMarkdown", () => {
       expect(result.current.state).toEqual({ kind: "notArticle" });
     });
 
-    await act(async () => {
-      await result.current.convertFullPage();
+    act(() => {
+      result.current.selectMode("fullPage");
     });
-
-    expect(result.current.state).toEqual({ kind: "notArticle" });
-    expect(runExtractionMock).toHaveBeenCalledTimes(2);
+    await waitFor(() => {
+      expect(result.current.state).toEqual({ kind: "noContent" });
+    });
   });
 
-  it("maps an unsupported page to unsupported", async () => {
-    runExtractionMock.mockRejectedValue(
-      new UnsupportedPageError("Cannot run on this page."),
+  it("reuses completed results when switching back to a mode", async () => {
+    runExtractionMock.mockImplementation((mode) =>
+      Promise.resolve(mode === "article" ? ARTICLE_RESULT : FULL_PAGE_RESULT),
     );
 
     const { result } = renderHook(() => useMarkdown());
-
     await waitFor(() => {
-      expect(result.current.state).toEqual({ kind: "unsupported" });
+      expect(result.current.state.kind).toBe("ready");
     });
+
+    act(() => {
+      result.current.selectMode("fullPage");
+    });
+    await waitFor(() => {
+      expect(result.current.mode).toBe("fullPage");
+      expect(result.current.state.kind).toBe("ready");
+    });
+
+    act(() => {
+      result.current.selectMode("article");
+    });
+
+    expect(result.current.mode).toBe("article");
+    expect(result.current.state).toEqual({
+      kind: "ready",
+      markdown: "# Article\n\nBody\n",
+    });
+    expect(runExtractionMock).toHaveBeenCalledTimes(2);
   });
 
-  it.each([
-    [
-      new InvalidExtractionResultError(),
-      "The extraction script returned an invalid result.",
-    ],
-    [new Error("Conversion failed."), "Conversion failed."],
-    ["unknown failure", "An unexpected error occurred."],
-  ])("maps an unexpected failure to failed", async (cause, message) => {
-    runExtractionMock.mockRejectedValue(cause);
+  it("keeps an article result when full-page extraction fails", async () => {
+    runExtractionMock.mockImplementation((mode) =>
+      mode === "article"
+        ? Promise.resolve(ARTICLE_RESULT)
+        : Promise.reject(new Error("Full-page conversion failed.")),
+    );
 
     const { result } = renderHook(() => useMarkdown());
-
     await waitFor(() => {
-      expect(result.current.state).toEqual({ kind: "failed", message });
+      expect(result.current.state.kind).toBe("ready");
+    });
+
+    act(() => {
+      result.current.selectMode("fullPage");
+    });
+    await waitFor(() => {
+      expect(result.current.state).toEqual({
+        kind: "failed",
+        message: "Full-page conversion failed.",
+      });
+    });
+
+    act(() => {
+      result.current.selectMode("article");
+    });
+    expect(result.current.state).toEqual({
+      kind: "ready",
+      markdown: "# Article\n\nBody\n",
     });
   });
 
-  it("runs the initial extraction once under StrictMode", async () => {
-    runExtractionMock.mockResolvedValue(ARTICLE_RESULT);
+  it("ignores repeated selections of the current mode", async () => {
+    const fullPageExtraction = deferred<ExtractionResult>();
+    runExtractionMock.mockImplementation((mode) =>
+      mode === "article"
+        ? Promise.resolve(ARTICLE_RESULT)
+        : fullPageExtraction.promise,
+    );
+
+    const { result } = renderHook(() => useMarkdown());
+    await waitFor(() => {
+      expect(result.current.state.kind).toBe("ready");
+    });
+
+    act(() => {
+      result.current.selectMode("fullPage");
+      result.current.selectMode("fullPage");
+    });
+
+    expect(runExtractionMock).toHaveBeenCalledTimes(2);
+    expect(runExtractionMock).toHaveBeenCalledWith("fullPage");
+
+    await act(async () => {
+      fullPageExtraction.resolve(FULL_PAGE_RESULT);
+      await fullPageExtraction.promise;
+    });
+  });
+
+  it("injects each selected mode once under StrictMode", async () => {
+    runExtractionMock.mockImplementation((mode) =>
+      Promise.resolve(mode === "article" ? ARTICLE_RESULT : FULL_PAGE_RESULT),
+    );
 
     const { result } = renderHook(() => useMarkdown(), {
       wrapper: StrictWrapper,
@@ -147,5 +216,96 @@ describe("useMarkdown", () => {
       expect(result.current.state.kind).toBe("ready");
     });
     expect(runExtractionMock).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.selectMode("fullPage");
+      result.current.selectMode("fullPage");
+    });
+    await waitFor(() => {
+      expect(result.current.state.kind).toBe("ready");
+    });
+
+    expect(runExtractionMock).toHaveBeenCalledTimes(2);
+    expect(runExtractionMock.mock.calls).toEqual([["article"], ["fullPage"]]);
   });
+
+  it("stores a result that completes while another mode is selected", async () => {
+    const articleExtraction = deferred<ExtractionResult>();
+    const fullPageExtraction = deferred<ExtractionResult>();
+    runExtractionMock.mockImplementation((mode) =>
+      mode === "article"
+        ? articleExtraction.promise
+        : fullPageExtraction.promise,
+    );
+
+    const { result } = renderHook(() => useMarkdown());
+
+    act(() => {
+      result.current.selectMode("fullPage");
+      result.current.selectMode("article");
+    });
+    expect(result.current.mode).toBe("article");
+    expect(result.current.state).toEqual({ kind: "loading" });
+
+    await act(async () => {
+      fullPageExtraction.resolve(FULL_PAGE_RESULT);
+      await fullPageExtraction.promise;
+    });
+    expect(result.current.mode).toBe("article");
+    expect(result.current.state).toEqual({ kind: "loading" });
+
+    act(() => {
+      result.current.selectMode("fullPage");
+    });
+    expect(runExtractionMock).toHaveBeenCalledTimes(2);
+    expect(result.current.state).toEqual({
+      kind: "ready",
+      markdown: "# Page\n\nFull page\n",
+    });
+
+    await act(async () => {
+      articleExtraction.resolve(ARTICLE_RESULT);
+      await articleExtraction.promise;
+    });
+  });
+
+  it("blocks mode selection after an unsupported-page result", async () => {
+    runExtractionMock.mockRejectedValue(
+      new UnsupportedPageError("Cannot run on this page."),
+    );
+
+    const { result } = renderHook(() => useMarkdown());
+
+    await waitFor(() => {
+      expect(result.current.unsupported).toBe(true);
+    });
+
+    act(() => {
+      result.current.selectMode("fullPage");
+    });
+
+    expect(result.current.mode).toBe("article");
+    expect(runExtractionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [
+      new InvalidExtractionResultError(),
+      "The extraction script returned an invalid result.",
+    ],
+    [new Error("Conversion failed."), "Conversion failed."],
+    ["unknown failure", "An unexpected error occurred."],
+  ])(
+    "maps an unexpected failure to the selected mode",
+    async (cause, message) => {
+      runExtractionMock.mockRejectedValue(cause);
+
+      const { result } = renderHook(() => useMarkdown());
+
+      await waitFor(() => {
+        expect(result.current.state).toEqual({ kind: "failed", message });
+      });
+      expect(result.current.unsupported).toBe(false);
+    },
+  );
 });

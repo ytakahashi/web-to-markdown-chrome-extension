@@ -3,18 +3,31 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { runExtraction } from "../../browser/active-tab";
 import { UnsupportedPageError } from "../../browser/errors";
 import { buildMarkdown } from "../../core/markdown/build-markdown";
-import type { ExtractionMode } from "../../core/types";
+import type { ExtractionMode, ExtractionResult } from "../../core/types";
 
-export type MarkdownState =
+export type ModeState =
+  | { kind: "idle" }
   | { kind: "loading" }
   | { kind: "ready"; markdown: string }
   | { kind: "notArticle" }
-  | { kind: "unsupported" }
+  | { kind: "noContent" }
   | { kind: "failed"; message: string };
 
 export type MarkdownController = {
-  state: MarkdownState;
-  convertFullPage: () => Promise<void>;
+  mode: ExtractionMode;
+  state: ModeState;
+  unsupported: boolean;
+  selectMode: (mode: ExtractionMode) => void;
+};
+
+type FailedExtractionReason = Extract<
+  ExtractionResult,
+  { ok: false }
+>["reason"];
+
+const INITIAL_MODE_STATES: Record<ExtractionMode, ModeState> = {
+  article: { kind: "loading" },
+  fullPage: { kind: "idle" },
 };
 
 function failureMessage(cause: unknown): string {
@@ -25,72 +38,144 @@ function failureMessage(cause: unknown): string {
   return "An unexpected error occurred.";
 }
 
-async function extractMarkdown(mode: ExtractionMode): Promise<MarkdownState> {
-  try {
-    const result = await runExtraction(mode);
-    if (!result.ok) {
-      // Both reasons collapse into one state until the mode switcher gives
-      // no-content a state of its own.
+function failedExtractionState(reason: FailedExtractionReason): ModeState {
+  switch (reason) {
+    case "not-article":
       return { kind: "notArticle" };
+    case "no-content":
+      return { kind: "noContent" };
+    default: {
+      const exhaustiveReason: never = reason;
+      throw new Error(
+        `Unhandled extraction failure reason: ${String(exhaustiveReason)}`,
+      );
     }
-
-    return {
-      kind: "ready",
-      markdown: buildMarkdown(result.content),
-    };
-  } catch (cause) {
-    if (cause instanceof UnsupportedPageError) {
-      return { kind: "unsupported" };
-    }
-
-    return { kind: "failed", message: failureMessage(cause) };
   }
 }
 
+async function extractMarkdown(mode: ExtractionMode): Promise<ModeState> {
+  const result = await runExtraction(mode);
+  if (!result.ok) {
+    return failedExtractionState(result.reason);
+  }
+
+  return {
+    kind: "ready",
+    markdown: buildMarkdown(result.content),
+  };
+}
+
 export function useMarkdown(): MarkdownController {
-  const [state, setState] = useState<MarkdownState>({ kind: "loading" });
+  const [mode, setMode] = useState<ExtractionMode>("article");
+  const [states, setStates] = useState(INITIAL_MODE_STATES);
+  const [unsupported, setUnsupported] = useState(false);
   const mountedRef = useRef(false);
-  const initialRequestRef = useRef<Promise<MarkdownState> | null>(null);
-  const initialResultAppliedRef = useRef(false);
-  const fallbackPendingRef = useRef(false);
+  const selectedModeRef = useRef<ExtractionMode>("article");
+  const unsupportedRef = useRef(false);
+  const requestsRef = useRef(new Map<ExtractionMode, Promise<ModeState>>());
+  const appliedResultsRef = useRef(new Set<ExtractionMode>());
+
+  const requestMode = useCallback(
+    (requestedMode: ExtractionMode): Promise<ModeState> => {
+      const existingRequest = requestsRef.current.get(requestedMode);
+      if (existingRequest) {
+        return existingRequest;
+      }
+
+      setStates((currentStates) => {
+        if (currentStates[requestedMode].kind !== "idle") {
+          return currentStates;
+        }
+
+        return {
+          ...currentStates,
+          [requestedMode]: { kind: "loading" },
+        };
+      });
+
+      // Settled promises remain cached for the popup lifetime so each mode is
+      // injected at most once, not merely once at a time.
+      const request = extractMarkdown(requestedMode);
+      requestsRef.current.set(requestedMode, request);
+      return request;
+    },
+    [],
+  );
+
+  const observeRequest = useCallback(
+    (requestedMode: ExtractionMode, request: Promise<ModeState>): void => {
+      void request.then(
+        (nextState) => {
+          if (
+            !mountedRef.current ||
+            appliedResultsRef.current.has(requestedMode)
+          ) {
+            return;
+          }
+
+          appliedResultsRef.current.add(requestedMode);
+          setStates((currentStates) => ({
+            ...currentStates,
+            [requestedMode]: nextState,
+          }));
+        },
+        (cause: unknown) => {
+          if (
+            !mountedRef.current ||
+            appliedResultsRef.current.has(requestedMode)
+          ) {
+            return;
+          }
+
+          appliedResultsRef.current.add(requestedMode);
+          if (cause instanceof UnsupportedPageError) {
+            unsupportedRef.current = true;
+            setUnsupported(true);
+            return;
+          }
+
+          setStates((currentStates) => ({
+            ...currentStates,
+            [requestedMode]: {
+              kind: "failed",
+              message: failureMessage(cause),
+            },
+          }));
+        },
+      );
+    },
+    [],
+  );
 
   useEffect(() => {
     mountedRef.current = true;
 
-    // StrictMode replays effects in development. Sharing the request keeps one
-    // popup opening equivalent to one article injection.
-    initialRequestRef.current ??= extractMarkdown("article");
-    void initialRequestRef.current.then((nextState) => {
-      if (mountedRef.current && !initialResultAppliedRef.current) {
-        initialResultAppliedRef.current = true;
-        setState(nextState);
-      }
-    });
+    // StrictMode replays effects. Re-observing the cached request preserves its
+    // result if it settled during the simulated unmount without reinjecting.
+    observeRequest("article", requestMode("article"));
 
     return () => {
       mountedRef.current = false;
     };
-  }, []);
+  }, [observeRequest, requestMode]);
 
-  const convertFullPage = useCallback(async (): Promise<void> => {
-    // setState does not update this render's state snapshot. A second call in
-    // the same tick still sees notArticle, so the ref closes that reentry gap.
-    if (state.kind !== "notArticle" || fallbackPendingRef.current) {
-      return;
-    }
-
-    fallbackPendingRef.current = true;
-    setState({ kind: "loading" });
-
-    try {
-      const nextState = await extractMarkdown("fullPage");
-      if (mountedRef.current) {
-        setState(nextState);
+  const selectMode = useCallback(
+    (nextMode: ExtractionMode): void => {
+      if (unsupportedRef.current || selectedModeRef.current === nextMode) {
+        return;
       }
-    } finally {
-      fallbackPendingRef.current = false;
-    }
-  }, [state.kind]);
 
-  return { state, convertFullPage };
+      selectedModeRef.current = nextMode;
+      setMode(nextMode);
+      observeRequest(nextMode, requestMode(nextMode));
+    },
+    [observeRequest, requestMode],
+  );
+
+  return {
+    mode,
+    state: states[mode],
+    unsupported,
+    selectMode,
+  };
 }
