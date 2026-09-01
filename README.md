@@ -42,9 +42,12 @@ pnpm zip # Writes the archive under `.output`.
 
 1. Open a regular web page.
 2. Select **Web to Markdown** in the Chrome toolbar.
-3. Review the read-only Markdown output.
-4. Select **Copy** and paste the result into an editor.
-5. If article extraction is unavailable, select **Convert entire page**.
+3. Keep the default **Article** mode for the main content, or select **Full page**
+   to convert the entire document.
+4. Review the read-only Markdown output.
+5. Select **Copy** and paste the result into an editor.
+6. If article extraction is unavailable, select **Convert entire page**. This
+   selects the same **Full page** mode shown in the header.
 
 Chrome internal pages, the Chrome Web Store, local `file:` URLs, and PDF viewer
 pages do not allow this extension to inject its extractor. The popup reports

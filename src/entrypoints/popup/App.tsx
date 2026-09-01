@@ -1,9 +1,11 @@
 import { useState } from "react";
 
+import type { ExtractionMode } from "../../core/types";
 import { CopyButton } from "./components/CopyButton";
 import { FallbackPrompt } from "./components/FallbackPrompt";
 import { LoadingIndicator } from "./components/LoadingIndicator";
 import { MarkdownView } from "./components/MarkdownView";
+import { ModeSwitcher } from "./components/ModeSwitcher";
 import { Notice } from "./components/Notice";
 import { useMarkdown, type ModeState } from "./use-markdown";
 
@@ -30,6 +32,11 @@ const NOTICES = {
 
 type PopupViewState = ModeState | { kind: "unsupported" };
 
+const LOADING_ANNOUNCEMENTS: Record<ExtractionMode, string> = {
+  article: "Converting the main article content…",
+  fullPage: "Converting the entire page…",
+};
+
 function noticeAnnouncement(notice: {
   title: string;
   message: string;
@@ -37,11 +44,11 @@ function noticeAnnouncement(notice: {
   return `${notice.title}. ${notice.message}`;
 }
 
-function stateAnnouncement(view: PopupViewState): string {
+function stateAnnouncement(view: PopupViewState, mode: ExtractionMode): string {
   switch (view.kind) {
     case "idle":
     case "loading":
-      return "Converting current page…";
+      return LOADING_ANNOUNCEMENTS[mode];
     case "notArticle":
       return noticeAnnouncement(NOTICES.notArticle);
     case "noContent":
@@ -54,16 +61,32 @@ function stateAnnouncement(view: PopupViewState): string {
 }
 
 export function App() {
-  const { state, unsupported, selectMode } = useMarkdown();
+  const { mode, state, unsupported, selectMode } = useMarkdown();
   const [copyAnnouncement, setCopyAnnouncement] = useState("");
+  const [focusResultOnReady, setFocusResultOnReady] = useState(true);
   const view: PopupViewState = unsupported ? { kind: "unsupported" } : state;
   const announcement =
-    view.kind === "ready" ? copyAnnouncement : stateAnnouncement(view);
+    view.kind === "ready" ? copyAnnouncement : stateAnnouncement(view, mode);
+
+  const handleSelectMode = (nextMode: ExtractionMode): void => {
+    setFocusResultOnReady(false);
+    selectMode(nextMode);
+  };
+
+  const handleFallbackSelectFullPage = (): void => {
+    // The fallback button unmounts while loading, so focus the resulting output
+    // instead of leaving keyboard focus on the document body.
+    setFocusResultOnReady(true);
+    selectMode("fullPage");
+  };
 
   return (
     <main className="popup">
       <header className="popup-header">
         <h1>Markdown</h1>
+        {view.kind !== "unsupported" && (
+          <ModeSwitcher mode={mode} onSelect={handleSelectMode} />
+        )}
       </header>
 
       <p
@@ -82,8 +105,12 @@ export function App() {
 
         {view.kind === "ready" && (
           <>
-            <MarkdownView markdown={view.markdown} />
+            <MarkdownView
+              autoFocus={focusResultOnReady}
+              markdown={view.markdown}
+            />
             <CopyButton
+              key={mode}
               markdown={view.markdown}
               onAnnouncement={setCopyAnnouncement}
             />
@@ -92,8 +119,9 @@ export function App() {
 
         {view.kind === "notArticle" && (
           <FallbackPrompt
+            autoFocus={focusResultOnReady}
             message={NOTICES.notArticle.message}
-            onSelectFullPage={() => selectMode("fullPage")}
+            onSelectFullPage={handleFallbackSelectFullPage}
             title={NOTICES.notArticle.title}
           />
         )}

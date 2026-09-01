@@ -49,9 +49,27 @@ describe("App", () => {
 
     expect(screen.getByRole("heading", { name: "Markdown" })).toBeTruthy();
     expect(screen.getByRole("status").textContent).toBe(
-      "Converting current page…",
+      "Converting the main article content…",
     );
+    expect(
+      screen.getByRole("radiogroup", { name: "Extraction mode" }),
+    ).toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("announces full-page loading without disabling mode selection", () => {
+    mockController({ kind: "loading" }, { mode: "fullPage" });
+
+    render(<App />);
+
+    expect(screen.getByRole("status").textContent).toBe(
+      "Converting the entire page…",
+    );
+    const fullPage = screen.getByRole("radio", {
+      name: "Full page: Convert the entire page",
+    });
+    expect(fullPage.getAttribute("aria-checked")).toBe("true");
+    expect((fullPage as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("renders read-only Markdown and moves focus to it", () => {
@@ -84,12 +102,66 @@ describe("App", () => {
     expect(copyTextMock).toHaveBeenCalledWith("# Article\n");
   });
 
+  it("keeps focus on the selected mode when ready content changes", async () => {
+    const user = userEvent.setup();
+    const selectMode = vi.fn();
+    mockController({ kind: "ready", markdown: "# Article\n" }, { selectMode });
+    const { rerender } = render(<App />);
+    const fullPage = screen.getByRole("radio", {
+      name: "Full page: Convert the entire page",
+    });
+
+    await user.click(fullPage);
+    expect(selectMode).toHaveBeenCalledWith("fullPage");
+
+    mockController(
+      { kind: "ready", markdown: "# Full page\n" },
+      { mode: "fullPage", selectMode },
+    );
+    rerender(<App />);
+
+    expect(document.activeElement).toBe(fullPage);
+    expect(
+      (
+        screen.getByRole("textbox", {
+          name: "Markdown output",
+        }) as HTMLTextAreaElement
+      ).value,
+    ).toBe("# Full page\n");
+  });
+
+  it("resets Copy state and content when the mode changes", async () => {
+    mockController({ kind: "ready", markdown: "# Article\n" });
+    const { rerender } = render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Copied!" })).toBeTruthy();
+    });
+
+    mockController(
+      { kind: "ready", markdown: "# Full page\n" },
+      { mode: "fullPage" },
+    );
+    rerender(<App />);
+
+    expect(screen.getByRole("button", { name: "Copy" })).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByRole("status").textContent).toBe("");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() => {
+      expect(copyTextMock).toHaveBeenLastCalledWith("# Full page\n");
+    });
+  });
+
   it("runs full-page conversion from the keyboard", async () => {
     const user = userEvent.setup();
     const selectMode = vi.fn();
     mockController({ kind: "notArticle" }, { selectMode });
 
-    render(<App />);
+    const { rerender } = render(<App />);
 
     const button = screen.getByRole("button", {
       name: "Convert entire page",
@@ -102,6 +174,16 @@ describe("App", () => {
     await user.keyboard("{Enter}");
 
     expect(selectMode).toHaveBeenCalledWith("fullPage");
+
+    mockController(
+      { kind: "ready", markdown: "# Full page\n" },
+      { mode: "fullPage", selectMode },
+    );
+    rerender(<App />);
+
+    expect(document.activeElement).toBe(
+      screen.getByRole("textbox", { name: "Markdown output" }),
+    );
   });
 
   it("renders a no-content notice without fallback controls", () => {
@@ -140,6 +222,7 @@ describe("App", () => {
     );
     expect(screen.queryByRole("button")).toBeNull();
     expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("radiogroup")).toBeNull();
   });
 
   it("keeps one live region mounted while status messages change", () => {
