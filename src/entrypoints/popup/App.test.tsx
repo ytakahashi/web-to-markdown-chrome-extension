@@ -4,7 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { copyText } from "../../browser/clipboard";
 import { App } from "./App";
-import { useMarkdown } from "./use-markdown";
+import {
+  useMarkdown,
+  type MarkdownController,
+  type ModeState,
+} from "./use-markdown";
 
 vi.mock("../../browser/clipboard", () => ({
   copyText: vi.fn(),
@@ -17,15 +21,27 @@ vi.mock("./use-markdown", () => ({
 const copyTextMock = vi.mocked(copyText);
 const useMarkdownMock = vi.mocked(useMarkdown);
 
+function mockController(
+  state: ModeState,
+  overrides: Partial<Omit<MarkdownController, "state">> = {},
+): MarkdownController {
+  const controller: MarkdownController = {
+    mode: "article",
+    state,
+    unsupported: false,
+    selectMode: vi.fn(),
+    ...overrides,
+  };
+  useMarkdownMock.mockReturnValue(controller);
+  return controller;
+}
+
 describe("App", () => {
   beforeEach(() => {
     copyTextMock.mockReset();
     copyTextMock.mockResolvedValue(undefined);
     useMarkdownMock.mockReset();
-    useMarkdownMock.mockReturnValue({
-      state: { kind: "loading" },
-      convertFullPage: vi.fn(),
-    });
+    mockController({ kind: "loading" });
   });
 
   it("renders an accessible loading state", () => {
@@ -39,9 +55,9 @@ describe("App", () => {
   });
 
   it("renders read-only Markdown and moves focus to it", () => {
-    useMarkdownMock.mockReturnValue({
-      state: { kind: "ready", markdown: "# Article\n\nBody\n" },
-      convertFullPage: vi.fn(),
+    mockController({
+      kind: "ready",
+      markdown: "# Article\n\nBody\n",
     });
 
     render(<App />);
@@ -55,10 +71,7 @@ describe("App", () => {
   });
 
   it("announces Copy status through the persistent live region", async () => {
-    useMarkdownMock.mockReturnValue({
-      state: { kind: "ready", markdown: "# Article\n" },
-      convertFullPage: vi.fn(),
-    });
+    mockController({ kind: "ready", markdown: "# Article\n" });
 
     render(<App />);
 
@@ -73,11 +86,8 @@ describe("App", () => {
 
   it("runs full-page conversion from the keyboard", async () => {
     const user = userEvent.setup();
-    const convertFullPage = vi.fn().mockResolvedValue(undefined);
-    useMarkdownMock.mockReturnValue({
-      state: { kind: "notArticle" },
-      convertFullPage,
-    });
+    const selectMode = vi.fn();
+    mockController({ kind: "notArticle" }, { selectMode });
 
     render(<App />);
 
@@ -91,14 +101,34 @@ describe("App", () => {
 
     await user.keyboard("{Enter}");
 
-    expect(convertFullPage).toHaveBeenCalledTimes(1);
+    expect(selectMode).toHaveBeenCalledWith("fullPage");
+  });
+
+  it("renders a no-content notice without fallback controls", () => {
+    mockController(
+      { kind: "noContent" },
+      { mode: "fullPage", selectMode: vi.fn() },
+    );
+
+    render(<App />);
+
+    expect(
+      screen.getByRole("heading", { name: "No content was found" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("This page has no content to convert."),
+    ).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toBe(
+      "No content was found. This page has no content to convert.",
+    );
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
   it("renders an unsupported-page notice without conversion controls", () => {
-    useMarkdownMock.mockReturnValue({
-      state: { kind: "unsupported" },
-      convertFullPage: vi.fn(),
-    });
+    mockController(
+      { kind: "ready", markdown: "# Hidden\n" },
+      { unsupported: true },
+    );
 
     render(<App />);
 
@@ -109,16 +139,14 @@ describe("App", () => {
       "This page isn't supported. Web to Markdown can't run on this page. Try opening a regular web page.",
     );
     expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("textbox")).toBeNull();
   });
 
   it("keeps one live region mounted while status messages change", () => {
     const { rerender } = render(<App />);
     const liveRegion = screen.getByRole("status");
 
-    useMarkdownMock.mockReturnValue({
-      state: { kind: "unsupported" },
-      convertFullPage: vi.fn(),
-    });
+    mockController({ kind: "loading" }, { unsupported: true });
     rerender(<App />);
 
     expect(screen.getByRole("status")).toBe(liveRegion);
@@ -128,9 +156,9 @@ describe("App", () => {
   });
 
   it("renders an unexpected failure and its error summary", () => {
-    useMarkdownMock.mockReturnValue({
-      state: { kind: "failed", message: "Extraction script failed." },
-      convertFullPage: vi.fn(),
+    mockController({
+      kind: "failed",
+      message: "Extraction script failed.",
     });
 
     render(<App />);
