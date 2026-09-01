@@ -6,6 +6,7 @@ import { runExtraction } from "../../browser/active-tab";
 import { UnsupportedPageError } from "../../browser/errors";
 import type { ExtractionResult } from "../../core/types";
 import { InvalidExtractionResultError } from "../../core/validate-extraction-result";
+import { DEFAULT_EXTRACTION_MODE } from "./extraction-modes";
 import { useMarkdown } from "./use-markdown";
 
 vi.mock("../../browser/active-tab", () => ({
@@ -48,12 +49,12 @@ describe("useMarkdown", () => {
     const { result } = renderHook(() => useMarkdown());
 
     expect(result.current).toMatchObject({
-      mode: "article",
+      mode: DEFAULT_EXTRACTION_MODE,
       state: { kind: "loading" },
       unsupported: false,
     });
     expect(runExtractionMock).toHaveBeenCalledTimes(1);
-    expect(runExtractionMock).toHaveBeenCalledWith("article");
+    expect(runExtractionMock).toHaveBeenCalledWith(DEFAULT_EXTRACTION_MODE);
 
     extraction.resolve(ARTICLE_RESULT);
     await waitFor(() => {

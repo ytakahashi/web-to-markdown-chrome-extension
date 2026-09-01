@@ -4,6 +4,7 @@ import { runExtraction } from "../../browser/active-tab";
 import { UnsupportedPageError } from "../../browser/errors";
 import { buildMarkdown } from "../../core/markdown/build-markdown";
 import type { ExtractionMode, ExtractionResult } from "../../core/types";
+import { DEFAULT_EXTRACTION_MODE } from "./extraction-modes";
 
 export type ModeState =
   | { kind: "idle" }
@@ -25,10 +26,16 @@ type FailedExtractionReason = Extract<
   { ok: false }
 >["reason"];
 
-const INITIAL_MODE_STATES: Record<ExtractionMode, ModeState> = {
-  article: { kind: "loading" },
-  fullPage: { kind: "idle" },
-};
+function createInitialModeStates(): Record<ExtractionMode, ModeState> {
+  const states: Record<ExtractionMode, ModeState> = {
+    article: { kind: "idle" },
+    fullPage: { kind: "idle" },
+  };
+
+  // Only the mode requested automatically starts out running.
+  states[DEFAULT_EXTRACTION_MODE] = { kind: "loading" };
+  return states;
+}
 
 function failureMessage(cause: unknown): string {
   if (cause instanceof Error && cause.message) {
@@ -66,11 +73,11 @@ async function extractMarkdown(mode: ExtractionMode): Promise<ModeState> {
 }
 
 export function useMarkdown(): MarkdownController {
-  const [mode, setMode] = useState<ExtractionMode>("article");
-  const [states, setStates] = useState(INITIAL_MODE_STATES);
+  const [mode, setMode] = useState<ExtractionMode>(DEFAULT_EXTRACTION_MODE);
+  const [states, setStates] = useState(createInitialModeStates);
   const [unsupported, setUnsupported] = useState(false);
   const mountedRef = useRef(false);
-  const selectedModeRef = useRef<ExtractionMode>("article");
+  const selectedModeRef = useRef<ExtractionMode>(DEFAULT_EXTRACTION_MODE);
   const unsupportedRef = useRef(false);
   const requestsRef = useRef(new Map<ExtractionMode, Promise<ModeState>>());
   const appliedResultsRef = useRef(new Set<ExtractionMode>());
@@ -152,7 +159,10 @@ export function useMarkdown(): MarkdownController {
 
     // StrictMode replays effects. Re-observing the cached request preserves its
     // result if it settled during the simulated unmount without reinjecting.
-    observeRequest("article", requestMode("article"));
+    observeRequest(
+      DEFAULT_EXTRACTION_MODE,
+      requestMode(DEFAULT_EXTRACTION_MODE),
+    );
 
     return () => {
       mountedRef.current = false;

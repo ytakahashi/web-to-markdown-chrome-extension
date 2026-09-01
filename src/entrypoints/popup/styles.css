@@ -41,16 +41,62 @@ textarea {
 }
 
 .popup-header {
+  display: flex;
   flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   padding: 16px 20px 14px;
   border-bottom: 1px solid #dadce0;
 }
 
 .popup-header h1 {
+  flex: none;
   margin: 0;
   font-size: 18px;
   font-weight: 600;
   line-height: 1.4;
+}
+
+.mode-switcher {
+  display: inline-flex;
+  min-width: 0;
+  flex: none;
+  gap: 2px;
+  border: 1px solid #dadce0;
+  border-radius: 7px;
+  padding: 2px;
+  background: #f1f3f4;
+}
+
+.mode-switcher__option {
+  min-height: 28px;
+  border: 0;
+  border-radius: 4px;
+  padding: 4px 10px;
+  background: transparent;
+  color: #5f6368;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mode-switcher__option:hover {
+  background: #e8eaed;
+  color: #3c4043;
+}
+
+.mode-switcher__option[aria-checked="true"] {
+  background: #ffffff;
+  color: #1967d2;
+  box-shadow: 0 1px 2px rgb(60 64 67 / 25%);
+}
+
+.mode-switcher__option:focus-visible {
+  outline: 2px solid #174ea6;
+  outline-offset: 2px;
 }
 
 .popup-content {
