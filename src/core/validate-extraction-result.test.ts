@@ -31,6 +31,15 @@ describe("validateExtractionResult", () => {
     });
   });
 
+  it("accepts the no-content result", () => {
+    expect(
+      validateExtractionResult({ ok: false, reason: "no-content" }),
+    ).toEqual({
+      ok: false,
+      reason: "no-content",
+    });
+  });
+
   it.each([
     undefined,
     null,

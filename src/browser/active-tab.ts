@@ -1,18 +1,17 @@
-import type { ExtractionResult } from "../core/types";
+import type { ExtractionMode, ExtractionResult } from "../core/types";
 import { validateExtractionResult } from "../core/validate-extraction-result";
 import { ExtractionExecutionError, UnsupportedPageError } from "./errors";
 import { isUnsupportedTarget } from "./unsupported-target";
 
-export const EXTRACTION_SCRIPTS = {
+// Literal paths satisfy WXT's generated ScriptPublicPath type, while satisfies
+// keeps the mode-to-script mapping exhaustive without widening those literals.
+const EXTRACTION_SCRIPTS = {
   article: "/extract-article.js",
   fullPage: "/extract-full-page.js",
-} as const;
-
-export type ExtractionScript =
-  (typeof EXTRACTION_SCRIPTS)[keyof typeof EXTRACTION_SCRIPTS];
+} as const satisfies Record<ExtractionMode, string>;
 
 export async function runExtraction(
-  script: ExtractionScript,
+  mode: ExtractionMode,
 ): Promise<ExtractionResult> {
   let tabs;
   try {
@@ -32,7 +31,7 @@ export async function runExtraction(
   try {
     injected = await browser.scripting.executeScript({
       target: { tabId: tab.id },
-      files: [script],
+      files: [EXTRACTION_SCRIPTS[mode]],
     });
   } catch (cause) {
     if (isUnsupportedTarget(tab.url, cause)) {

@@ -5,6 +5,8 @@ export type ExtractedContent = {
   html: string;
 };
 
+export type ExtractionMode = "article" | "fullPage";
+
 export type ExtractionResult =
   | { ok: true; content: ExtractedContent }
-  | { ok: false; reason: "not-article" };
+  | { ok: false; reason: "not-article" | "no-content" };

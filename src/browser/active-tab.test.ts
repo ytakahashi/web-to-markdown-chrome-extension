@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InvalidExtractionResultError } from "../core/validate-extraction-result";
 import { assertExtractionSuccess } from "../test/assert-extraction-success";
-import { EXTRACTION_SCRIPTS, runExtraction } from "./active-tab";
+import { runExtraction } from "./active-tab";
 import { ExtractionExecutionError, UnsupportedPageError } from "./errors";
 
 describe("runExtraction", () => {
@@ -33,7 +33,7 @@ describe("runExtraction", () => {
       },
     ]);
 
-    const result = await runExtraction(EXTRACTION_SCRIPTS.article);
+    const result = await runExtraction("article");
 
     assertExtractionSuccess(result);
     expect(result.content).toEqual({
@@ -50,12 +50,31 @@ describe("runExtraction", () => {
     });
   });
 
+  it("injects the full-page script for fullPage mode", async () => {
+    executeScript.mockResolvedValue([
+      {
+        frameId: 0,
+        result: {
+          ok: true,
+          content: { title: "Page", html: "<main>Content</main>" },
+        },
+      },
+    ]);
+
+    await runExtraction("fullPage");
+
+    expect(executeScript).toHaveBeenCalledWith({
+      target: { tabId: 42 },
+      files: ["/extract-full-page.js"],
+    });
+  });
+
   it("returns a validated not-article result", async () => {
     executeScript.mockResolvedValue([
       { frameId: 0, result: { ok: false, reason: "not-article" } },
     ]);
 
-    await expect(runExtraction(EXTRACTION_SCRIPTS.article)).resolves.toEqual({
+    await expect(runExtraction("article")).resolves.toEqual({
       ok: false,
       reason: "not-article",
     });
@@ -64,7 +83,7 @@ describe("runExtraction", () => {
   it("rejects with UnsupportedPageError when there is no active tab", async () => {
     query.mockResolvedValue([]);
 
-    await expect(runExtraction(EXTRACTION_SCRIPTS.article)).rejects.toThrow(
+    await expect(runExtraction("article")).rejects.toThrow(
       UnsupportedPageError,
     );
     expect(executeScript).not.toHaveBeenCalled();
@@ -74,7 +93,7 @@ describe("runExtraction", () => {
     const cause = new Error("Query failed.");
     query.mockRejectedValue(cause);
 
-    const error = await runExtraction(EXTRACTION_SCRIPTS.article).catch(
+    const error = await runExtraction("article").catch(
       (caught: unknown) => caught,
     );
 
@@ -88,7 +107,7 @@ describe("runExtraction", () => {
     query.mockResolvedValue([{ id: 42, url: "chrome://extensions" }]);
     executeScript.mockRejectedValue(cause);
 
-    const error = await runExtraction(EXTRACTION_SCRIPTS.article).catch(
+    const error = await runExtraction("article").catch(
       (caught: unknown) => caught,
     );
 
@@ -100,7 +119,7 @@ describe("runExtraction", () => {
     const cause = new Error("Injected script crashed.");
     executeScript.mockRejectedValue(cause);
 
-    const error = await runExtraction(EXTRACTION_SCRIPTS.article).catch(
+    const error = await runExtraction("article").catch(
       (caught: unknown) => caught,
     );
 
@@ -113,7 +132,7 @@ describe("runExtraction", () => {
     async (injected) => {
       executeScript.mockResolvedValue(injected);
 
-      await expect(runExtraction(EXTRACTION_SCRIPTS.article)).rejects.toThrow(
+      await expect(runExtraction("article")).rejects.toThrow(
         InvalidExtractionResultError,
       );
     },

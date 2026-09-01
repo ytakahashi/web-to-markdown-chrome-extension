@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import {
-  EXTRACTION_SCRIPTS,
-  runExtraction,
-  type ExtractionScript,
-} from "../../browser/active-tab";
+import { runExtraction } from "../../browser/active-tab";
 import { UnsupportedPageError } from "../../browser/errors";
 import { buildMarkdown } from "../../core/markdown/build-markdown";
+import type { ExtractionMode } from "../../core/types";
 
 export type MarkdownState =
   | { kind: "loading" }
@@ -28,12 +25,12 @@ function failureMessage(cause: unknown): string {
   return "An unexpected error occurred.";
 }
 
-async function extractMarkdown(
-  script: ExtractionScript,
-): Promise<MarkdownState> {
+async function extractMarkdown(mode: ExtractionMode): Promise<MarkdownState> {
   try {
-    const result = await runExtraction(script);
+    const result = await runExtraction(mode);
     if (!result.ok) {
+      // Both reasons collapse into one state until the mode switcher gives
+      // no-content a state of its own.
       return { kind: "notArticle" };
     }
 
@@ -62,7 +59,7 @@ export function useMarkdown(): MarkdownController {
 
     // StrictMode replays effects in development. Sharing the request keeps one
     // popup opening equivalent to one article injection.
-    initialRequestRef.current ??= extractMarkdown(EXTRACTION_SCRIPTS.article);
+    initialRequestRef.current ??= extractMarkdown("article");
     void initialRequestRef.current.then((nextState) => {
       if (mountedRef.current && !initialResultAppliedRef.current) {
         initialResultAppliedRef.current = true;
@@ -86,7 +83,7 @@ export function useMarkdown(): MarkdownController {
     setState({ kind: "loading" });
 
     try {
-      const nextState = await extractMarkdown(EXTRACTION_SCRIPTS.fullPage);
+      const nextState = await extractMarkdown("fullPage");
       if (mountedRef.current) {
         setState(nextState);
       }

@@ -34,9 +34,9 @@ export function validateExtractionResult(value: unknown): ExtractionResult {
     };
   }
 
-  if (value.reason !== "not-article") {
+  if (value.reason !== "not-article" && value.reason !== "no-content") {
     throw new InvalidExtractionResultError();
   }
 
-  return { ok: false, reason: "not-article" };
+  return { ok: false, reason: value.reason };
 }
