@@ -60,4 +60,32 @@ describe("manual extraction fixtures", () => {
     expect(markdown).not.toContain("javascript:");
     expect(markdown).not.toContain("nonArticleScriptExecuted");
   });
+
+  it("keeps the preview fixture usable in article mode", () => {
+    const doc = fixtureDocument("preview.html");
+    const result = extractArticle(doc);
+
+    assertExtractionSuccess(result);
+  });
+
+  it("provides preview structures through full-page extraction", () => {
+    const doc = fixtureDocument("preview.html");
+    const result = extractFullPage(doc);
+
+    assertExtractionSuccess(result);
+    const markdown = buildMarkdown(result.content);
+
+    expect(markdown).toContain("~~removed content~~");
+    expect(markdown).toMatch(/^\s+-\s+Child item/m);
+    expect(markdown).toMatch(/-\s+\[x\]\s*Completed task/i);
+    expect(markdown).toContain("| Feature | Expected preview |");
+    expect(markdown).toContain('```ts\nconst format = "markdown";');
+    expect(markdown).toContain("![Preview diagram]");
+    expect(markdown).toContain("https://example.com/preview");
+    expect(markdown).toContain("mailto:preview@example.com");
+    expect(markdown).toContain("tel:+123456789");
+    expect(markdown).toContain("#destinations");
+    expect(markdown).not.toContain("data:image");
+    expect(markdown).not.toContain("javascript:");
+  });
 });
