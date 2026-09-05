@@ -9,6 +9,7 @@ const FIXTURES = new Map([
   ["/", ["article.html", "text/html; charset=utf-8"]],
   ["/article.html", ["article.html", "text/html; charset=utf-8"]],
   ["/non-article.html", ["non-article.html", "text/html; charset=utf-8"]],
+  ["/preview.html", ["preview.html", "text/html; charset=utf-8"]],
   ["/assets/sample.svg", ["assets/sample.svg", "image/svg+xml"]],
 ]);
 const FIXTURE_ROOT = new URL("../manual/fixtures/", import.meta.url);
@@ -52,6 +53,6 @@ const server = createServer((request, response) => {
 
 server.listen(PORT, HOST, () => {
   process.stdout.write(
-    `Manual fixtures: http://${HOST}:${PORT}/article.html and http://${HOST}:${PORT}/non-article.html\n`,
+    `Manual fixtures: http://${HOST}:${PORT}/article.html, http://${HOST}:${PORT}/non-article.html, and http://${HOST}:${PORT}/preview.html\n`,
   );
 });

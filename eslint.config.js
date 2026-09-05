@@ -43,6 +43,37 @@ export default tseslint.config(
     files: ["src/**/*.tsx"],
     ...reactHooks.configs.flat["recommended-latest"],
   },
+  {
+    files: ["src/entrypoints/popup/**/*.{ts,tsx}"],
+    rules: {
+      // The popup runs with extension privileges. Rendering page-derived text as
+      // HTML would turn a page-side XSS into extension-level code execution.
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "rehype-raw",
+              message: "Raw HTML must stay unparsed in the preview.",
+            },
+          ],
+          patterns: [
+            {
+              group: ["rehype-raw/*"],
+              message: "Raw HTML must stay unparsed in the preview.",
+            },
+          ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+          message: "Render Markdown as React elements; never as HTML.",
+        },
+      ],
+    },
+  },
   boundariesConfig,
   prettier,
 );

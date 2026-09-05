@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Markdown preview verification</title>
+  </head>
+  <body>
+    <article>
+      <h1>Markdown preview verification</h1>
+      <p>
+        This stable local article exercises the structures supported by the
+        Markdown preview. It contains enough descriptive text for article
+        extraction without depending on a third-party website or changing
+        network content.
+      </p>
+      <p>
+        <strong>Verification note:</strong> Use Full page mode when checking
+        task list markers and the fenced code language. Article mode
+        intentionally shows Readability's normalized output.
+      </p>
+      <p>
+        Text contains <em>emphasis</em>, <strong>strong content</strong>, and
+        <del>removed content</del> so their rendered forms can be compared with
+        the generated Markdown source.
+      </p>
+      <h2>Nested list</h2>
+      <ul>
+        <li>
+          Parent item
+          <ul>
+            <li>Child item</li>
+          </ul>
+        </li>
+      </ul>
+      <h2>Task list</h2>
+      <ul>
+        <li><input type="checkbox" checked />Completed task</li>
+        <li><input type="checkbox" />Pending task</li>
+      </ul>
+      <h2>Table</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Expected preview</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Table</td>
+            <td>Structured rows and columns</td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Code</h2>
+      <pre><code class="language-ts">const format = "markdown";
+console.log(format);</code></pre>
+      <h2>Images</h2>
+      <p>
+        <img src="assets/sample.svg" alt="Preview diagram" />
+        <img
+          src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+          alt="Embedded placeholder"
+        />
+      </p>
+      <h2 id="destinations">Links</h2>
+      <p>
+        <a href="https://example.com/preview">HTTPS destination</a>,
+        <a href="mailto:preview@example.com">email destination</a>,
+        <a href="tel:+123456789">telephone destination</a>,
+        <a href="#destinations">fragment destination</a>, and
+        <a href="javascript:alert('unsafe')">unsafe destination</a> exercise
+        displayable and text-only link handling.
+      </p>
+    </article>
+  </body>
+</html>
