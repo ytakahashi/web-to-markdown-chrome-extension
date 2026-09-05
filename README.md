@@ -44,8 +44,11 @@ pnpm zip # Writes the archive under `.output`.
 2. Select **Web to Markdown** in the Chrome toolbar.
 3. Keep the default **Article** mode for the main content, or select **Full page**
    to convert the entire document.
-4. Review the read-only Markdown output.
-5. Select **Copy** and paste the result into an editor.
+4. Keep the default **Markdown** view to review the source, or select
+   **Preview** to inspect the rendered result. The extraction mode and result
+   view can be changed independently.
+5. Select **Copy** and paste the result into an editor. Copy always writes the
+   Markdown source, including while **Preview** is selected.
 6. If article extraction is unavailable, select **Convert entire page**. This
    selects the same **Full page** mode shown in the header.
 

@@ -85,7 +85,73 @@ describe("App", () => {
     expect((output as HTMLTextAreaElement).readOnly).toBe(true);
     expect((output as HTMLTextAreaElement).value).toBe("# Article\n\nBody\n");
     expect(document.activeElement).toBe(output);
+    expect(
+      screen.getByRole("radiogroup", { name: "Result view" }),
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole("radio", { name: "Markdown: Show the Markdown source" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
     expect(screen.getByRole("button", { name: "Copy" })).toBeTruthy();
+  });
+
+  it("switches to Preview without starting another conversion", async () => {
+    const user = userEvent.setup();
+    const selectMode = vi.fn();
+    mockController(
+      { kind: "ready", markdown: "# Article\n\nRendered body\n" },
+      { selectMode },
+    );
+
+    render(<App />);
+    await user.click(
+      screen.getByRole("radio", {
+        name: "Preview: Show the rendered Markdown",
+      }),
+    );
+
+    expect(
+      screen.queryByRole("textbox", { name: "Markdown output" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("article", { name: "Markdown preview" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Article" }),
+    ).toBeTruthy();
+    expect(selectMode).not.toHaveBeenCalled();
+  });
+
+  it("keeps the result switcher hidden outside the ready state", () => {
+    const { rerender } = render(<App />);
+    expect(
+      screen.queryByRole("radiogroup", { name: "Result view" }),
+    ).toBeNull();
+
+    mockController({ kind: "notArticle" });
+    rerender(<App />);
+    expect(
+      screen.queryByRole("radiogroup", { name: "Result view" }),
+    ).toBeNull();
+
+    mockController({ kind: "noContent" }, { mode: "fullPage" });
+    rerender(<App />);
+    expect(
+      screen.queryByRole("radiogroup", { name: "Result view" }),
+    ).toBeNull();
+
+    mockController({ kind: "failed", message: "Failed." });
+    rerender(<App />);
+    expect(
+      screen.queryByRole("radiogroup", { name: "Result view" }),
+    ).toBeNull();
+
+    mockController({ kind: "loading" }, { unsupported: true });
+    rerender(<App />);
+    expect(
+      screen.queryByRole("radiogroup", { name: "Result view" }),
+    ).toBeNull();
   });
 
   it("announces Copy status through the persistent live region", async () => {
@@ -100,6 +166,48 @@ describe("App", () => {
       expect(screen.getByRole("status").textContent).toBe("Markdown copied.");
     });
     expect(copyTextMock).toHaveBeenCalledWith("# Article\n");
+  });
+
+  it("copies the Markdown source and preserves Copy status in Preview", async () => {
+    const user = userEvent.setup();
+    const markdown = "# Source heading\n\n**Source body**\n";
+    mockController({ kind: "ready", markdown });
+
+    render(<App />);
+    await user.click(
+      screen.getByRole("radio", {
+        name: "Preview: Show the rendered Markdown",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Copy" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Copied!" })).toBeTruthy();
+    });
+    expect(copyTextMock).toHaveBeenCalledWith(markdown);
+
+    await user.click(
+      screen.getByRole("radio", {
+        name: "Markdown: Show the Markdown source",
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Copied!" })).toBeTruthy();
+  });
+
+  it("keeps focus on the result switcher without changing the live region", async () => {
+    const user = userEvent.setup();
+    mockController({ kind: "ready", markdown: "# Article\n" });
+    render(<App />);
+    const liveRegion = screen.getByRole("status");
+    const preview = screen.getByRole("radio", {
+      name: "Preview: Show the rendered Markdown",
+    });
+
+    await user.click(preview);
+
+    expect(document.activeElement).toBe(preview);
+    expect(screen.getByRole("status")).toBe(liveRegion);
+    expect(liveRegion.textContent).toBe("");
   });
 
   it("keeps focus on the selected mode when ready content changes", async () => {
@@ -128,6 +236,42 @@ describe("App", () => {
         }) as HTMLTextAreaElement
       ).value,
     ).toBe("# Full page\n");
+  });
+
+  it("preserves Preview across mode and content changes", async () => {
+    const user = userEvent.setup();
+    const selectMode = vi.fn();
+    mockController({ kind: "ready", markdown: "# Article\n" }, { selectMode });
+    const { rerender } = render(<App />);
+
+    await user.click(
+      screen.getByRole("radio", {
+        name: "Preview: Show the rendered Markdown",
+      }),
+    );
+    const fullPage = screen.getByRole("radio", {
+      name: "Full page: Convert the entire page",
+    });
+    await user.click(fullPage);
+
+    mockController(
+      { kind: "ready", markdown: "# Full page\n\nUpdated body\n" },
+      { mode: "fullPage", selectMode },
+    );
+    rerender(<App />);
+
+    expect(
+      screen
+        .getByRole("radio", { name: "Preview: Show the rendered Markdown" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(
+      screen.queryByRole("textbox", { name: "Markdown output" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Full page" }),
+    ).toBeTruthy();
+    expect(document.activeElement).toBe(fullPage);
   });
 
   it("resets Copy state and content when the mode changes", async () => {
@@ -183,6 +327,39 @@ describe("App", () => {
 
     expect(document.activeElement).toBe(
       screen.getByRole("textbox", { name: "Markdown output" }),
+    );
+  });
+
+  it("focuses the selected Preview after the fallback conversion", async () => {
+    const user = userEvent.setup();
+    const selectMode = vi.fn();
+    mockController(
+      { kind: "ready", markdown: "# Full page\n" },
+      { mode: "fullPage", selectMode },
+    );
+    const { rerender } = render(<App />);
+
+    await user.click(
+      screen.getByRole("radio", {
+        name: "Preview: Show the rendered Markdown",
+      }),
+    );
+
+    mockController({ kind: "notArticle" }, { selectMode });
+    rerender(<App />);
+    await user.click(
+      screen.getByRole("button", { name: "Convert entire page" }),
+    );
+    expect(selectMode).toHaveBeenCalledWith("fullPage");
+
+    mockController(
+      { kind: "ready", markdown: "# Full page\n" },
+      { mode: "fullPage", selectMode },
+    );
+    rerender(<App />);
+
+    expect(document.activeElement).toBe(
+      screen.getByRole("article", { name: "Markdown preview" }),
     );
   });
 
