@@ -74,5 +74,36 @@ console.log(format);</code></pre>
         displayable and text-only link handling.
       </p>
     </article>
+    <script>
+      const query = new URLSearchParams(window.location.search);
+      if (query.get("long") === "1") {
+        const article = document.querySelector("article");
+        if (article) {
+          const fragment = document.createDocumentFragment();
+          for (let index = 1; index <= 750; index += 1) {
+            const section = document.createElement("section");
+            const heading = document.createElement("h2");
+            const paragraph = document.createElement("p");
+            const list = document.createElement("ul");
+            const codeBlock = document.createElement("pre");
+            const code = document.createElement("code");
+
+            heading.textContent = `Generated section ${index}`;
+            paragraph.textContent =
+              "This deterministic content makes the converted Markdown large enough to check preview scrolling and rendering responsiveness without relying on an external page.";
+            for (let itemIndex = 1; itemIndex <= 3; itemIndex += 1) {
+              const item = document.createElement("li");
+              item.textContent = `Generated list item ${index}.${itemIndex}`;
+              list.append(item);
+            }
+            code.textContent = `const generatedSection = ${index};`;
+            codeBlock.append(code);
+            section.append(heading, paragraph, list, codeBlock);
+            fragment.append(section);
+          }
+          article.append(fragment);
+        }
+      }
+    </script>
   </body>
 </html>

@@ -4,9 +4,12 @@ import type { ExtractionMode } from "../../core/types";
 import { CopyButton } from "./components/CopyButton";
 import { FallbackPrompt } from "./components/FallbackPrompt";
 import { LoadingIndicator } from "./components/LoadingIndicator";
+import { MarkdownPreview } from "./components/MarkdownPreview";
 import { MarkdownView } from "./components/MarkdownView";
 import { ModeSwitcher } from "./components/ModeSwitcher";
 import { Notice } from "./components/Notice";
+import { ViewSwitcher } from "./components/ViewSwitcher";
+import { DEFAULT_RESULT_VIEW, type ResultView } from "./result-views";
 import { useMarkdown, type ModeState } from "./use-markdown";
 
 const NOTICES = {
@@ -30,7 +33,7 @@ const NOTICES = {
   },
 } as const;
 
-type PopupViewState = ModeState | { kind: "unsupported" };
+type PopupState = ModeState | { kind: "unsupported" };
 
 const LOADING_ANNOUNCEMENTS: Record<ExtractionMode, string> = {
   article: "Converting the main article content…",
@@ -44,8 +47,11 @@ function noticeAnnouncement(notice: {
   return `${notice.title}. ${notice.message}`;
 }
 
-function stateAnnouncement(view: PopupViewState, mode: ExtractionMode): string {
-  switch (view.kind) {
+function stateAnnouncement(
+  popupState: PopupState,
+  mode: ExtractionMode,
+): string {
+  switch (popupState.kind) {
     case "idle":
     case "loading":
       return LOADING_ANNOUNCEMENTS[mode];
@@ -64,9 +70,12 @@ export function App() {
   const { mode, state, unsupported, selectMode } = useMarkdown();
   const [copyAnnouncement, setCopyAnnouncement] = useState("");
   const [focusResultOnReady, setFocusResultOnReady] = useState(true);
-  const view: PopupViewState = unsupported ? { kind: "unsupported" } : state;
+  const [resultView, setResultView] = useState<ResultView>(DEFAULT_RESULT_VIEW);
+  const popupState: PopupState = unsupported ? { kind: "unsupported" } : state;
   const announcement =
-    view.kind === "ready" ? copyAnnouncement : stateAnnouncement(view, mode);
+    popupState.kind === "ready"
+      ? copyAnnouncement
+      : stateAnnouncement(popupState, mode);
 
   const handleSelectMode = (nextMode: ExtractionMode): void => {
     setFocusResultOnReady(false);
@@ -80,11 +89,17 @@ export function App() {
     selectMode("fullPage");
   };
 
+  const handleSelectResultView = (nextView: ResultView): void => {
+    // A newly mounted result must not steal focus from the view switcher.
+    setFocusResultOnReady(false);
+    setResultView(nextView);
+  };
+
   return (
     <main className="popup">
       <header className="popup-header">
         <h1>Markdown</h1>
-        {view.kind !== "unsupported" && (
+        {popupState.kind !== "unsupported" && (
           <ModeSwitcher mode={mode} onSelect={handleSelectMode} />
         )}
       </header>
@@ -98,26 +113,39 @@ export function App() {
         {announcement}
       </p>
 
-      <div className={`popup-content popup-content--${view.kind}`}>
-        {(view.kind === "idle" || view.kind === "loading") && (
+      <div className={`popup-content popup-content--${popupState.kind}`}>
+        {(popupState.kind === "idle" || popupState.kind === "loading") && (
           <LoadingIndicator />
         )}
 
-        {view.kind === "ready" && (
+        {popupState.kind === "ready" && (
           <>
-            <MarkdownView
-              autoFocus={focusResultOnReady}
-              markdown={view.markdown}
-            />
-            <CopyButton
-              key={mode}
-              markdown={view.markdown}
-              onAnnouncement={setCopyAnnouncement}
-            />
+            {resultView === "markdown" ? (
+              <MarkdownView
+                autoFocus={focusResultOnReady}
+                markdown={popupState.markdown}
+              />
+            ) : (
+              <MarkdownPreview
+                autoFocus={focusResultOnReady}
+                markdown={popupState.markdown}
+              />
+            )}
+            <div className="result-controls">
+              <ViewSwitcher
+                view={resultView}
+                onSelect={handleSelectResultView}
+              />
+              <CopyButton
+                key={mode}
+                markdown={popupState.markdown}
+                onAnnouncement={setCopyAnnouncement}
+              />
+            </div>
           </>
         )}
 
-        {view.kind === "notArticle" && (
+        {popupState.kind === "notArticle" && (
           <FallbackPrompt
             autoFocus={focusResultOnReady}
             message={NOTICES.notArticle.message}
@@ -126,28 +154,28 @@ export function App() {
           />
         )}
 
-        {view.kind === "noContent" && (
+        {popupState.kind === "noContent" && (
           <Notice
             message={NOTICES.noContent.message}
             title={NOTICES.noContent.title}
           />
         )}
 
-        {view.kind === "unsupported" && (
+        {popupState.kind === "unsupported" && (
           <Notice
             message={NOTICES.unsupported.message}
             title={NOTICES.unsupported.title}
           />
         )}
 
-        {view.kind === "failed" && (
+        {popupState.kind === "failed" && (
           <Notice
             role="alert"
             tone="error"
             message={NOTICES.failed.message}
             title={NOTICES.failed.title}
           >
-            <p className="notice-details">{view.message}</p>
+            <p className="notice-details">{popupState.message}</p>
           </Notice>
         )}
       </div>
